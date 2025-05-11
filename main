@@ -1,0 +1,158 @@
+<?php
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Collect and sanitize input values
+    $firstname   = trim($_POST['firstname'] ?? '');
+    $middleinit  = trim($_POST['middleinit'] ?? '');
+    $lastname    = trim($_POST['lastname'] ?? '');
+    $age         = trim($_POST['age'] ?? '');
+    $gender      = $_POST['gender'] ?? '';  // gender from radio
+    $addr1       = trim($_POST['addr1'] ?? '');
+    $addr2       = trim($_POST['addr2'] ?? '');
+    $city        = trim($_POST['city'] ?? '');
+    $state       = trim($_POST['state'] ?? '');
+    $zip         = trim($_POST['zip'] ?? '');
+    $phone       = trim($_POST['phone'] ?? '');
+    $email       = trim($_POST['email'] ?? '');
+    $password    = $_POST['password'] ?? '';       // plaintext password
+    $creditCard  = $_POST['creditcard'] ?? '';     // credit card number
+    $primaryGoal = $_POST['primary_goal'] ?? '';   // radio (expected integer code)
+    $interests   = $_POST['interests'] ?? [];      // array from checkboxes
+
+    $errors = [];  // to collect validation error messages
+
+    // Validation of required fields
+    if ($firstname === '' || $lastname === '' || $email === '' || $password === '' || 
+        $age === '' || $gender === '' || $addr1 === '' || $city === '' || 
+        $state === '' || $zip === '' || $creditCard === '' || $primaryGoal === '') {
+        $errors[] = "Please fill in all required fields.";
+    }
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = "Invalid email address format.";
+    }
+    if ($age !== '' && (!ctype_digit($age) || (int)$age < 0)) {
+        $errors[] = "Age must be a valid positive number.";
+    }
+    if ($state !== '' && !preg_match('/^[A-Za-z]{2}$/', $state)) {
+        $errors[] = "State must be a 2-letter code.";
+    }
+    if ($zip !== '' && (!ctype_digit($zip) || strlen($zip) !== 5)) {
+        $errors[] = "ZIP code must be 5 digits.";
+    }
+    if ($phone !== '' && (!ctype_digit($phone) || strlen($phone) !== 10)) {
+        $errors[] = "Phone number must be 10 digits.";
+    }
+    if ($password !== '' && !preg_match('/^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}$/', $password)) {
+        $errors[] = "Password must be at least 8 characters and include at least one uppercase letter, one lowercase letter, and one number.";
+    }
+    if ($creditCard !== '' && (!ctype_digit($creditCard) || strlen($creditCard) !== 16)) {
+        $errors[] = "Credit card number must be 16 digits.";
+    }
+
+    if (!empty($errors)) {
+        echo "<h3>Submission Error</h3>";
+        echo "<ul>";
+        foreach ($errors as $err) {
+            echo "<li>" . htmlspecialchars($err) . "</li>";
+        }
+        echo "</ul>";
+        echo "<p>Please go back and correct the above issue(s).</p>";
+        exit; 
+    }
+
+    // Hash the password securely (using default algorithm, e.g. bcrypt)
+    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+    // Tokenize the credit card number (e.g., replace with a random token or masked number)
+    $ccToken = 'tok_' . bin2hex(random_bytes(8));  // generate a random token string
+
+    $memberStatus = 'a';  // new membership status = active
+    $createdAt = date('Y-m-d H:i:s');    // current timestamp for creation
+    $modifiedAt = $createdAt;           // initially, modified = created time
+    $inactiveAt = NULL;                 // not inactive yet
+
+    $interestsList = implode(',', $interests);
+
+    $conn = new mysqli("localhost", "DB_USER", "DB_PASS", "DB_NAME");
+    if ($conn->connect_error) {
+        die("Database connection failed: " . $conn->connect_error);
+    }
+    $stmt = $conn->prepare(
+      "INSERT INTO members 
+       (status, firstname, middleinit, lastname, age, gender, addr1, addr2, city, state, zip, phone, email, password_hashed, cc_token, primary_goal, fitness_interest, date_created, date_modified, date_inactive)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    $stmt->bind_param(
+        "ssssisssssssssssssss", 
+        $memberStatus, $firstname, $middleinit, $lastname, 
+        $age, $gender, $addr1, $addr2, $city, $state, $zip, $phone, $email, 
+        $passwordHash, $ccToken, $primaryGoal, $interestsList, 
+        $createdAt, $modifiedAt, $inactiveAt
+    );
+    $success = $stmt->execute();
+    if (!$success) {
+        // Insertion failed (e.g., database error)
+        echo "<h3>Database Error</h3>";
+        echo "<p>Sorry, there was an error saving your membership. Please try again later.</p>";
+    } else {
+        // Insertion successful – display confirmation
+        echo "<h2>Thank You, $firstname!</h2>";
+        echo "<p>Your gym membership has been successfully created.</p>";
+    }
+    $stmt->close();
+    $conn->close();
+} else {
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Gym Membership Signup</title>
+</head>
+<body>
+  <h2>Gym Membership Registration</h2>
+  <form method="POST" action="">
+    <!-- Personal Information Fields -->
+    <label>First Name*: <input type="text" name="firstname" maxlength="30" required></label><br>
+    <label>Middle Initial: <input type="text" name="middleinit" maxlength="1"></label><br>
+    <label>Last Name*: <input type="text" name="lastname" maxlength="30" required></label><br>
+    <label>Age*: <input type="number" name="age" min="0" max="120" required></label><br>
+    <label>Gender*: 
+      <input type="radio" name="gender" value="M" required> Male 
+      <input type="radio" name="gender" value="F" required> Female 
+      <input type="radio" name="gender" value="O" required> Other
+    </label><br>
+    <!-- Contact Information -->
+    <label>Address Line 1*: <input type="text" name="addr1" maxlength="30" required></label><br>
+    <label>Address Line 2: <input type="text" name="addr2" maxlength="30"></label><br>
+    <label>City*: <input type="text" name="city" maxlength="30" required></label><br>
+    <label>State*: <input type="text" name="state" maxlength="2" required></label><br>
+    <label>ZIP Code*: <input type="text" name="zip" pattern="\d{5}" maxlength="5" required></label><br>
+    <label>Phone Number: <input type="text" name="phone" pattern="\d{10}" maxlength="10"></label><br>
+    <label>Email*: <input type="email" name="email" maxlength="40" required></label><br>
+    <!-- Account Security -->
+    <label>Password*: 
+      <input type="password" name="password" minlength="8" 
+             pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" required>
+    </label><br>
+    <!-- Billing Info -->
+    <label>Credit Card Number*: <input type="text" name="creditcard" pattern="\d{16}" maxlength="16" required></label><br>
+    <!-- Membership Preferences -->
+    <p>Primary Fitness Goal*:</p>
+    <label><input type="radio" name="primary_goal" value="1" required> 1 – Weight Loss</label><br>
+    <label><input type="radio" name="primary_goal" value="2" required> 2 – Build Muscle</label><br>
+    <label><input type="radio" name="primary_goal" value="3" required> 3 – Improve Endurance</label><br>
+    <label><input type="radio" name="primary_goal" value="4" required> 4 – Improve Flexibility</label><br>
+    <label><input type="radio" name="primary_goal" value="5" required> 5 – General Health/Fitness</label><br>
+    <p>Fitness Interests (choose any that apply):</p>
+    <label><input type="checkbox" name="interests[]" value="Cardio"> Cardio</label><br>
+    <label><input type="checkbox" name="interests[]" value="Strength Training"> Strength Training</label><br>
+    <label><input type="checkbox" name="interests[]" value="Yoga"> Yoga</label><br>
+    <label><input type="checkbox" name="interests[]" value="Swimming"> Swimming</label><br>
+    <label><input type="checkbox" name="interests[]" value="Group Classes"> Group Classes</label><br><br>
+    <button type="submit">Submit Membership</button>
+  </form>
+</body>
+</html>
+<?php
+}
+?>
