@@ -1,0 +1,35 @@
+CREATE TABLE members (
+    member_id INT AUTO_INCREMENT PRIMARY KEY,
+    status CHAR(1) NOT NULL DEFAULT 'a', -- a = active, s = suspended, d = delinquent, i = inactive
+    firstname VARCHAR(30) NOT NULL,
+    middleinit CHAR(1),
+    lastname VARCHAR(30) NOT NULL,
+    age TINYINT UNSIGNED NOT NULL,
+    gender CHAR(1) NOT NULL,             -- M, F, O
+    addr1 VARCHAR(30) NOT NULL,
+    addr2 VARCHAR(30),
+    city VARCHAR(30) NOT NULL,
+    state CHAR(2) NOT NULL,
+    zip VARCHAR(5) NOT NULL,
+    phone VARCHAR(10),
+    email VARCHAR(40) NOT NULL UNIQUE,
+    password_hashed VARCHAR(255) NOT NULL,
+    cc_token VARCHAR(100) NOT NULL,
+    primary_goal TINYINT NOT NULL,       -- FK to primary_goals(goal_id)
+    fitness_interest VARCHAR(100),       -- comma-separated list like "Yoga,Cardio"
+    date_created DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    date_modified DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    date_inactive DATETIME
+);
+
+CREATE TABLE primary_goals (
+    goal_id TINYINT PRIMARY KEY,
+    description VARCHAR(50) NOT NULL
+);
+
+INSERT INTO primary_goals (goal_id, description) VALUES
+(1, 'Weight Loss'),
+(2, 'Build Muscle'),
+(3, 'Improve Endurance'),
+(4, 'Improve Flexibility'),
+(5, 'General Health/Fitness');
